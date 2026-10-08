@@ -187,17 +187,113 @@
 ---
 
 ### 3. 지역별/권역별 Canvas 지도 선택 및 반응형 인터랙션 (`main_product.js`)
-기존의 단순 버튼 나열 방식을 탈피하여, 지도 그래픽과 Canvas 기술을 접목한 인터랙티브 권역 탐색 시스템을 제공합니다.
+기존의 단순 텍스트 버튼 나열 방식을 탈피하여, 대한민국 지도 비트맵 그래픽과 HTML5 Canvas 기술을 접목한 인터랙티브 권역 탐색 시스템을 제공합니다.
 
-- **대한민국 6대 권역 시각화**: 수도권, 강원, 충청, 경상, 전라, 제주 권역을 지도상에 직관적으로 표현
-- **HTML5 Canvas 픽셀 플러드필(Flood Fill) 알고리즘**:
-  - 지도 이미지의 픽셀 색상 및 경계선 구분을 분석하여 사용자가 클릭한 지점의 권역을 정확하게 판별
-- **실시간 마우스 호버(Hover) 하이라이트**:
-  - 마우스 커서가 올라간 권역을 실시간으로 감지하여 하이라이트 색상으로 동적 렌더링
-- **실시간 권역 탭 및 상품 목록 동기화**:
-  - 지도 클릭 시 해당 권역 탭이 활성화되며, 우측의 여행 상품 카드 목록이 해당 권역 상품으로 즉각 필터링
+#### ① HTML5 Canvas 픽셀 플러드필(Flood Fill) 알고리즘
+- **알고리즘 개요**:
+  - 대한민국 지도 원본 비트맵 이미지(`map_basic.png`, 370 × 539 해상도)의 행정 구역 경계선(어두운 선)을 경계벽으로 삼고, 권역별 내륙 정밀 시드 좌표(`regionSeeds`)로부터 4방향 큐(Queue) 기반 플러드필 탐색을 실행합니다.
+  - 이를 통해 370 × 539 크기의 1차원 바이트 배열 `Uint8Array`인 `regionGrid`에 권역 코드(1: 수도권, 2: 강원, 3: 충청, 4: 경상, 5: 전라, 6: 제주)를 1회 사전 색인(O(1) 룩업 테이블)하여 마우스 좌표 판별 성능을 극대화합니다.
+
+- **핵심 함수별 기능 명세**:
+  | 함수명 | 입출력 (매개변수 ➔ 반환) | 핵심 기능 및 역할 |
+  | :--- | :--- | :--- |
+  | `initMapCanvas()` | `void ➔ void` | 캔버스 크기(370×539) 설정, 원본 이미지 렌더링, `getImageData()`로 픽셀 버퍼(`baseImageData`) 추출 및 `buildRegionGrid()`를 호출하여 권역 그리드 캐싱 |
+  | `isFillableWhite(data, x, y, width, height)` | `(data, x, y, w, h) ➔ boolean` | 지정 좌표가 채색 가능한 내륙 흰색 픽셀인지 판별 (`alpha > 150 && R > 220 && G > 220 && B > 220`). 경계선 및 바다 배경 영역 침범 차단 |
+  | `buildRegionGrid(data, width, height)` | `(data, w, h) ➔ Uint8Array` | 각 권역별 시드 좌표(`regionSeeds`)에서 시작하여 4방향 큐 탐색으로 흰색 픽셀 영역을 채워 권역 코드(1~6)를 기록한 룩업 배열 생성 |
+  | `getRegionFromCoord(x, y)` | `(x, y) ➔ string \| null` | 캔버스 클릭/마우스 좌표를 1차원 인덱스(`y * 370 + x`)로 변환하여 `regionGrid`에서 권역 키를 O(1)로 조회. 경계선 클릭 대비 반경 3px 근접 스냅 탐색 지원 |
+  | `activateRegion(region)` | `(region) ➔ void` | 선택된 권역의 상품 목록 탭 활성화, 탭/지도 버튼 active 클래스 동기화, `renderMap()` 호출 및 브라우저 URL 파라미터(`?region=...`) 갱신 |
+
+- **플러드필 및 권역 선택 호출 Flow**:
+  ```mermaid
+  sequenceDiagram
+      autonumber
+      actor User as 사용자
+      participant Canvas as mapCanvas (#map-canvas)
+      participant Init as initMapCanvas()
+      participant Build as buildRegionGrid()
+      participant Fill as isFillableWhite()
+      participant Coord as getRegionFromCoord()
+      participant Act as activateRegion()
+      participant Render as renderMap()
+
+      Note over Init, Build: [초기화 단계] 지도 로딩 시 1회 사전 인덱싱 (O(1) 캐싱)
+      Init->>Init: ctx.drawImage(sourceImg) & getImageData()
+      Init->>Build: buildRegionGrid(baseImageData.data, 370, 539)
+      loop 6대 권역별 시드 좌표 (regionSeeds)
+          Build->>Fill: isFillableWhite(x, y) 검사
+          Build->>Build: 4방향 큐(Queue) 플러드필 수행 및 regionGrid에 코드(1~6) 기록
+      end
+      Build-->>Init: regionGrid (Uint8Array 룩업 테이블) 반환 및 캐싱
+      Init->>Render: renderMap('all', null) 초기 렌더링
+
+      Note over User, Render: [사용자 권역 선택 클릭 단계]
+      User->>Canvas: 지도 특정 권역 클릭 (click 이벤트)
+      Canvas->>Canvas: 뷰포트 대비 Canvas 내부 상대 좌표 (clickX, clickY) 산출
+      Canvas->>Coord: getRegionFromCoord(clickX, clickY)
+      Coord->>Coord: regionGrid[y * 370 + x] 인덱스 조회 (반경 3px 스냅)
+      Coord-->>Canvas: 권역 코드 반환 (예: 'sudo')
+      Canvas->>Act: activateRegion('sudo')
+      Act->>Act: 우측 상품 패널 활성화 (#pills-sudo) & 탭/버튼 active 동기화
+      Act->>Render: renderMap('sudo', null) 지도 하이라이트 갱신
+      Act->>Act: window.history.replaceState (URL 파라미터 갱신)
+  ```
+
+---
+
+#### ② 실시간 마우스 호버(Hover) 하이라이트 알고리즘
+- **알고리즘 개요**:
+  - 사용자가 지도 캔버스 위에서 마우스를 이동하거나 좌측 권역 버튼에 마우스를 올릴 때, `mousemove` 및 `mouseenter` 이벤트를 실시간 감지합니다.
+  - 마우스 커서 아래에 위치한 권역 코드를 즉시 판별하여, 해당 권역 전체 픽셀을 산뜻한 에메랄드 그린(`rgba(66, 186, 130, 0.76)`)으로 고속 채색하고 커서를 `pointer`로 전환하며, 권역 중심에 그림자 효과가 적용된 둥근 알약형 뱃지(`drawRegionBadge`)를 동적으로 렌더링합니다.
+
+- **핵심 함수별 기능 명세**:
+  | 함수명 | 입출력 (매개변수 ➔ 반환) | 핵심 기능 및 역할 |
+  | :--- | :--- | :--- |
+  | `mapCanvas.onmousemove` | `MouseEvent ➔ void` | 마우스 좌표를 캔버스 스케일에 맞추어 변환 후 `getRegionFromCoord()`로 호버 권역 식별. 커서 변경 및 변경 시에만 `renderMap()` 호출 |
+  | `mapCanvas.onmouseleave` | `MouseEvent ➔ void` | 마우스가 캔버스를 벗어났을 때 `currentHoveredRegion = null`, 커서 `default`, `renderMap(currentActiveRegion, null)`로 원복 |
+  | `renderMap(active, hover)` | `(active, hover) ➔ void` | 원본 픽셀 복사본에 `activeCode`(초록 `#15803D`)와 `hoverCode`(에메랄드 `#42BA82`), 동시 겹침(`#106930`)을 픽셀 단위로 적용 후 `putImageData()`로 고속 일괄 렌더링 |
+  | `drawRegionBadge(ctx, badge, isHover)` | `(ctx, badge, isHover) ➔ void` | 권역 중심 앵커 좌표(`regionBadges`)에 둥근 모서리 박스(`roundRect`), 입체적 드롭 섀도우, 텍스트(예: `📍 수도권`)를 캔버스 상단에 오버레이 |
+  | 탭/버튼 `mouseenter/mouseleave` | `Event ➔ void` | 좌측 탭 버튼 및 지도 선택 버튼에 마우스를 올렸을 때도 동일하게 캔버스 지도 해당 권역을 연동 하이라이트 |
+
+- **실시간 마우스 호버(Hover) 호출 Flow**:
+  ```mermaid
+  sequenceDiagram
+      autonumber
+      actor User as 사용자
+      participant Canvas as mapCanvas (#map-canvas)
+      participant Move as mousemove 이벤트
+      participant Coord as getRegionFromCoord()
+      participant Render as renderMap()
+      participant Badge as drawRegionBadge()
+
+      User->>Canvas: 마우스 커서 이동
+      Canvas->>Move: mousemove 이벤트 수신
+      Move->>Move: Canvas 스케일 보정 좌표 (moveX, moveY) 계산
+      Move->>Coord: getRegionFromCoord(moveX, moveY)
+      Coord-->>Move: 마우스 위치 권역 반환 (예: 'gang')
+
+      alt 호버 권역이 변경된 경우 (hoveredRegion !== currentHoveredRegion)
+          Move->>Move: currentHoveredRegion = 'gang' 갱신
+          Move->>Canvas: mapCanvas.style.cursor = 'pointer'
+          Move->>Render: renderMap(currentActiveRegion, 'gang')
+          Render->>Render: 원본 픽셀 복사본(currentData) 생성
+          Render->>Render: regionGrid 순회: 'gang' 픽셀을 에메랄드 그린(#42BA82)으로 치환
+          Render->>Canvas: ctx.putImageData(currentData, 0, 0) 버퍼 일괄 반영
+          Render->>Badge: drawRegionBadge(ctx, regionBadges['gang'], isHover=true)
+          Badge->>Canvas: 둥근 알약형 뱃지('📍 강원권') 및 그림자 렌더링
+      else 동일 권역 내 단순 이동
+          Note over Move, Render: 불필요한 재렌더링 스킵 (FPS 성능 최적화)
+      end
+
+      User->>Canvas: 마우스가 캔버스 바깥으로 이탈 (mouseleave)
+      Canvas->>Render: renderMap(currentActiveRegion, null)
+      Render->>Canvas: 호버 하이라이트 제거 및 원래 선택(Active) 상태 복원
+  ```
+
+---
+
+#### ③ 반응형 레이아웃 및 스크롤 고정 (Sticky)
 - **Sticky 고정 스크롤 레이아웃**:
-  - 상품 목록이 길어져 페이지를 아래로 스크롤해도 좌측의 지도와 탭 영역이 뷰포트 상단에 안정적으로 고정(`position: sticky`)
+  - 상품 목록이 길어져 페이지를 아래로 스크롤해도 좌측의 지도와 탭 영역이 뷰포트 상단에 안정적으로 고정(`position: sticky`)되어 다른 권역으로의 즉각적인 전환을 보장합니다.
 - **3단계 반응형 최적화**:
   - **데스크톱 (1025px 이상)**: 좌측 지도(330px 고정) + 우측 2열 상품 그리드
   - **태블릿 (769px ~ 1024px)**: 좌측 지도(320px 고정) + 우측 1열 상품 그리드
