@@ -18,6 +18,16 @@ def check_user_booked_product(user, product_id):
         Order.status != 'CANCELLED'
     ).first() is not None
 
+
+def _get_product_review_stats(product_id):
+    """특정 상품의 전체 후기 목록, 후기 수, 최근 작성일, 평균 평점을 반환"""
+    all_reviews = db.session.query(Review).filter_by(product_id=product_id).order_by(Review.created_at.desc()).all()
+    count = len(all_reviews)
+    latest_date = all_reviews[0].created_at.strftime('%Y-%m-%d') if all_reviews else None
+    avg_rating = round(sum(r.rating for r in all_reviews) / count, 1) if count > 0 else 0.0
+    return all_reviews, count, latest_date, avg_rating
+
+
 @bp.route('/list')
 def list():
     if g.user is None:
@@ -69,10 +79,7 @@ def list():
 @bp.route('/detail/<int:product_id>')
 def detail(product_id):
     selected_product = TourProduct.query.get_or_404(product_id)
-    all_product_reviews = db.session.query(Review).filter_by(product_id=product_id).order_by(Review.created_at.desc()).all()
-    review_count = len(all_product_reviews)
-    latest_review_date = all_product_reviews[0].created_at.strftime('%Y-%m-%d') if all_product_reviews else None
-    avg_rating = round(sum(r.rating for r in all_product_reviews) / review_count, 1) if review_count > 0 else 0.0
+    all_product_reviews, review_count, latest_review_date, avg_rating = _get_product_review_stats(product_id)
 
     review_id = request.args.get('review_id', type=int)
     selected_review = None
@@ -171,10 +178,7 @@ def create(product_id=None):
         flash('해당 여행 상품을 예약하신 회원만 후기를 작성하실 수 있습니다.', 'danger')
         return redirect(url_for('review.detail', product_id=product_id))
 
-    all_product_reviews = db.session.query(Review).filter_by(product_id=product_id).order_by(Review.created_at.desc()).all()
-    review_count = len(all_product_reviews)
-    latest_review_date = all_product_reviews[0].created_at.strftime('%Y-%m-%d') if all_product_reviews else None
-    avg_rating = round(sum(r.rating for r in all_product_reviews) / review_count, 1) if review_count > 0 else 0.0
+    all_product_reviews, review_count, latest_review_date, avg_rating = _get_product_review_stats(product_id)
 
     form = ReviewForm()
 
@@ -236,10 +240,7 @@ def modify(review_id):
         return redirect(url_for('review.detail', product_id=review.product_id, review_id=review.id))
 
     selected_product = review.product
-    all_product_reviews = db.session.query(Review).filter_by(product_id=review.product_id).order_by(Review.created_at.desc()).all()
-    review_count = len(all_product_reviews)
-    latest_review_date = all_product_reviews[0].created_at.strftime('%Y-%m-%d') if all_product_reviews else None
-    avg_rating = round(sum(r.rating for r in all_product_reviews) / review_count, 1) if review_count > 0 else 0.0
+    all_product_reviews, review_count, latest_review_date, avg_rating = _get_product_review_stats(review.product_id)
 
     form = ReviewForm(obj=review)
 

@@ -12,7 +12,7 @@
 4. [사용 기술 및 세부 구현](#-사용-기술-및-세부-구현)
 5. [프로젝트 구조](#-프로젝트-구조)
 6. [데이터베이스 E-R 다이어그램 (ERD)](#-데이터베이스-e-r-다이어그램-erd)
-7. [실행 방법 (DB 초기화 및 Seed 포함)](#-실행-방법-db-초기화-및-seed-포함)
+7. [실행 방법 (DB 초기화, Seed 및 Docker 포함)](#-실행-방법-db-초기화-seed-및-docker-포함)
 8. [테스트 및 기능 검증 완료 항목 (Playwright E2E 포함)](#-테스트-및-기능-검증-완료-항목-playwright-e2e-포함)
    - [8.1 Playwright E2E 자동화 테스트 환경 구축 및 실행 가이드](#81-playwright-e2e-자동화-테스트-환경-구축-및-실행-가이드)
    - [8.2 시나리오별 6대 E2E 자동화 테스트 스위트 명세](#82-시나리오별-6대-e2e-자동화-테스트-스위트-명세)
@@ -370,12 +370,14 @@ div-flask/
 │   ├── 05_notice_and_cs.spec.js              # 공지사항 카테고리 필터/검색, 고객센터 FAQ 인증 보호
 │   └── 06_review_lifecycle.spec.js           # 비로그인 후기 블러/오버레이, 예약 기반 리뷰 작성/수정/삭제 CRUD
 ├── config.py                     # 데이터베이스 URI, 시크릿 키 등 기본 설정 파일
+├── Dockerfile                    # Python 3.12-slim 기반 컨테이너 이미지 빌드 명세 (DB 자동 초기화/시딩 포함)
+├── .dockerignore                 # Docker 빌드 컨텍스트 제외 파일 목록 (.venv, node_modules, .git 등 제외)
 ├── requirements.txt              # 파이썬 의존성 패키지 명세서
 ├── seed_database.py              # 회원, 96개 여행 상품, 공지사항, 초기 주문/리뷰 시딩 스크립트
 ├── seed_accommodations_data.py   # 6대 권역 120개 연계 숙박 시설 시딩 스크립트
 ├── travel.db                     # SQLite 데이터베이스 파일 (자동 생성/연동)
 ├── .flaskenv                     # Flask 실행 환경 변수 정의 (FLASK_APP, FLASK_DEBUG)
-├── .gitignore                    # 버전 관리 제외 파일 목록
+├── .gitignore                    # Git 버전 관리 제외 파일 목록
 ├── migrations/                   # Flask-Migrate 스키마 버전 관리 디렉토리
 │   └── versions/                 # Alembic DB 마이그레이션 리비전 파일들
 └── pybo/                         # 메인 애플리케이션 패키지
@@ -399,7 +401,7 @@ div-flask/
     │   │   └── notice.css        # 공지사항 목록 및 아코디언 상세 전용 스타일
     │   ├── js/                   # 모듈별 자바스크립트
     │   │   ├── translate.js      # Google Translate 연동 및 실시간 커스텀 번역 단어 오버라이드 엔진
-    │   │   ├── main.js           # 메인 슬라이더, 탭 전환
+    │   │   ├── main.js           # GNB 드롭다운, M타임딜 실시간 타이머, 후기 더보기 토글
     │   │   ├── main_product.js   # Canvas 지도 플러드필, 권역 하이라이트 동기화
     │   │   ├── lookup.js         # 예약 내역 아코디언 토글 인터랙션
     │   │   ├── payment.js        # PortOne 결제 호출 및 금액 계산
@@ -410,17 +412,17 @@ div-flask/
     │   ├── base.html             # 공통 레이아웃 (GNB 헤더, 통합 검색창, 언어 선택기, 푸터)
     │   ├── index.html            # 메인 홈 페이지
     │   ├── notice.html           # 공지사항 목록 및 아코디언 상세 뷰 (base.html 연동)
-    │   ├── auth/                 # 회원 인증 관련 템플릿 (login, signup, signup_success)
-    │   ├── customer/             # 고객센터 관련 템플릿 (faq, question_form, customer_detail)
+    │   ├── auth/                 # 회원 인증 관련 템플릿 (login, signup, signup_success, errors)
+    │   ├── customer/             # 고객센터 관련 템플릿 (faq, question_form, customer_detail, customer_errors)
     │   ├── main_fragments/       # 메인 화면 조각 컴포넌트 (배너, 권역아이콘, 타임딜, 후기, 공지)
     │   ├── order/                # 주문 및 결제 템플릿 (reserve, payment, complete, lookup, detail)
     │   │   ├── _detail_card.html # 공통 상세 예약 카드 컴포넌트 (리뷰 수정/삭제 버튼 지원)
     │   │   └── _nearby_slide.html# 인근 추천 관광지 슬라이드 컴포넌트
     │   ├── product/              # 상품 템플릿 (main_product, main_product_nav, sub_product 등)
-    │   └── review/               # 리뷰 템플릿 (list, detail, create, modify)
+    │   └── review/               # 리뷰 템플릿 (review_list, review_detail, review_create, review_modify)
     └── views/                    # 블루프린트 라우트 컨트롤러
         ├── main_views.py         # 메인 홈, 공지사항 상세 라우팅, 다국어 처리
-        ├── product_views.py      # 상품 목록 키워드 검색/필터링, 상품 상세 조회
+        ├── product_views.py      # 상품 목록 키워드 검색/필터링, 상품 상세 조회 및 추천(Like) 토글
         ├── order_views.py        # 예약 접수, 결제 승인, 주문 내역 조회 및 취소
         ├── review_views.py       # 후기 목록, 작성, 수정, 삭제 및 권한 검증
         ├── auth_views.py         # 회원가입, 로그인, 로그아웃, 카카오 OAuth
@@ -581,13 +583,15 @@ erDiagram
 
 ---
 
-## 🚀 실행 방법 (DB 초기화 및 Seed 포함)
+## 🚀 실행 방법 (DB 초기화, Seed 및 Docker 포함)
 
-### 1. 사전 요구 사항
+### 방법 A. 로컬 Python 가상환경으로 실행
+
+#### 1. 사전 요구 사항
 - Python 3.10 이상 (Python 3.12 권장)
 - Git
 
-### 2. 프로젝트 클론 및 가상환경 설정
+#### 2. 프로젝트 클론 및 가상환경 설정
 ```bash
 # 1. 저장소 클론
 git clone <repository-url>
@@ -609,31 +613,20 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. 데이터베이스 초기화 (Database Migration)
-기존 DB 파일이 없는 상태에서 테이블 스키마를 최초 생성합니다.
+#### 3. 데이터베이스 초기화 및 시드 데이터 주입 (Database Seeding)
+`seed_database.py`는 테이블 스키마(`db.create_all()`)를 자동 생성하고 샘플 회원, 96개 추천 관광 상품, 공지사항, 초기 주문/리뷰를 일괄 등록합니다. 이어서 `seed_accommodations_data.py`로 120개 연계 숙박 데이터를 주입합니다.
 ```bash
-# 마이그레이션 적용 (테이블 자동 생성)
-flask db upgrade
-```
-> **참고**: 만약 초기 마이그레이션이 필요하다면 아래 명령어를 순서대로 실행합니다.
-> ```bash
-> flask db init
-> flask db migrate -m "initial migration"
-> flask db upgrade
-> ```
-
-### 4. 시드 데이터 주입 (Database Seeding)
-시스템이 온전히 구동될 수 있도록 샘플 사용자, 96개 추천 관광지 상품, 공지사항, 120개 연계 숙박 시설을 등록합니다.
-```bash
-# 1. 사용자 계정, 96개 여행 상품, 공지사항 10건, 초기 주문/리뷰 데이터 주입
+# 1. 테이블 생성 + 사용자 계정, 96개 여행 상품, 공지사항 10건, 초기 주문/리뷰 데이터 주입
 python seed_database.py
 
 # 2. 6대 권역 120개 연계 숙박(호텔/민박) 데이터 주입
 python seed_accommodations_data.py
 ```
-> **참고**: `M타임딜(TimeDeal)` 데이터는 Flask 서버가 구동될 때 `pybo/__init__.py`에 의해 자동으로 체크 및 등록됩니다.
+> **참고**:
+> - `M타임딜(TimeDeal)` 데이터는 Flask 서버가 구동될 때 `pybo/__init__.py`에 의해 자동으로 체크 및 등록됩니다.
+> - Alembic 기반 스키마 마이그레이션을 사용하는 경우 `flask db init` ➔ `flask db migrate` ➔ `flask db upgrade` 명령을 사용할 수도 있습니다.
 
-### 5. Flask 개발 서버 실행
+#### 4. Flask 개발 서버 실행
 ```bash
 # 환경변수 파일(.flaskenv)이 자동으로 적용되어 서버가 시작됩니다.
 flask run
@@ -642,6 +635,27 @@ flask run
 python -m flask run --host=127.0.0.1 --port=5000
 ```
 웹 브라우저를 열고 **`http://127.0.0.1:5000`** 으로 접속합니다.
+
+---
+
+### 방법 B. Docker 컨테이너로 빌드 및 실행
+
+프로젝트 루트의 `Dockerfile`과 `.dockerignore`를 통해 가상환경(`.venv`), `node_modules` 등 불필요한 대용량 파일을 제외한 경량 컨테이너 이미지를 빌드하고, 이미지 빌드 단계에서 DB 초기화 및 시드 데이터 주입까지 자동으로 완료합니다.
+
+```bash
+# 1. Docker 이미지 빌드 (프로젝트 루트 경로에서 실행)
+docker build -t hongdonjoo/div-application:1.4 .
+
+# 2. Docker 컨테이너 백그라운드 실행 (호스트 5000번 포트 바인딩)
+docker run -d -p 5000:5000 --name div-app hongdonjoo/div-application:1.4
+
+# 3. 컨테이너 실행 상태 및 로그 확인
+docker ps
+docker logs -f div-app
+```
+웹 브라우저를 열고 **`http://127.0.0.1:5000`** 으로 접속합니다.
+
+---
 
 ### 🔑 기본 테스트 계정 안내
 `seed_database.py` 실행 시 생성되는 기본 테스트 계정입니다.

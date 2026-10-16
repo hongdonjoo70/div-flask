@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash
+import ast
 import enum
 import uuid
 import json
@@ -14,13 +15,11 @@ class User(db.Model):
     name = db.Column(db.String(80), nullable=False)                                # 이름
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)   # email
     phone = db.Column(db.String(30), unique=True, nullable=False)                 # 전화번호
-    #role = db.Column(db.String(20), default='MEMBER')                             # MEMBER, ADMIN
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     reviews = db.relationship('Review', backref='author', lazy='dynamic', cascade='all, delete-orphan')
     orders = db.relationship('Order', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    #cart = db.relationship('Cart', backref='user', uselist=False, cascade='all, delete-orphan')
     likes = db.relationship('ProductLike', backref='user', lazy='dynamic', cascade='all, delete-orphan')
 
     def set_password(self, password):
@@ -57,7 +56,6 @@ class TourProduct(db.Model):
     name = db.Column(db.String(150), nullable=False, index=True)
     description = db.Column(db.Text, nullable=False)
     region = db.Column(db.String(50), nullable=False, index=True) # 6개 지역
-    #theme_id = db.Column(db.Integer, db.ForeignKey('themes.id'), nullable=False)
     original_price = db.Column(db.Integer, nullable=False)
     member_discount_rate = db.Column(db.Float, default=0.15) # 회원 15% 기본 할인
     recommendation_count = db.Column(db.Integer, default=0, index=True) # 누적 추천수
@@ -75,7 +73,7 @@ class TourProduct(db.Model):
     reviews = db.relationship('Review', backref='product', lazy='dynamic', cascade='all, delete-orphan')
     likes = db.relationship('ProductLike', backref='product', lazy='dynamic', cascade='all, delete-orphan')
     order_items = db.relationship('OrderItem', backref='product', lazy='dynamic')
-    #cart_items = db.relationship('CartItem', backref='product', lazy='dynamic')
+
     def get_discounted_price(self, is_member=False):
         """회원인 경우 할인율이 적용된 가격을 반환, 비회원은 정가 반환"""
         if is_member:
@@ -103,9 +101,6 @@ class TourProduct(db.Model):
 
     def get_image_list(self):
         """다중 이미지 URL 목록을 반환하고, 없으면 대표 이미지 또는 기본 이미지를 반환한다."""
-        import json
-        import ast
-
         raw = self.image_urls
 
         if raw:
@@ -134,9 +129,9 @@ class TourProduct(db.Model):
             return [self.image_url]
 
         return ["/static/img/default-tour.jpg"]
+
     def set_image_list(self, urls):
         """이미지 URL 목록을 JSON으로 직렬화하여 저장하고 대표 이미지 동기화"""
-        import json
         if isinstance(urls, list):
             self.image_urls = json.dumps(urls, ensure_ascii=False)
             if urls:
@@ -186,7 +181,6 @@ class TourProduct(db.Model):
 
     def get_itinerary(self):
         """일자별/시간대별 상세 여행 일정 반환 (DB에 없으면 기본 일정 생성)"""
-        import json
         if self.itinerary_json:
             try:
                 data = json.loads(self.itinerary_json)
@@ -255,7 +249,6 @@ class TourProduct(db.Model):
 
     def get_detail_info(self):
         """상품 소개, 핵심 포인트(하이라이트), 포함/불포함, 집결/준비사항 상세 정보 반환"""
-        import json
         if self.detail_content:
             try:
                 data = json.loads(self.detail_content)
@@ -356,7 +349,6 @@ class Order(db.Model):
     guest_phone = db.Column(db.String(30), nullable=True)  # 비회원 전화번호
     original_amount = db.Column(db.Integer, nullable=False)
     discount_amount = db.Column(db.Integer, default=0)
-    #final_amount = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='COMPLETED') # PENDING, COMPLETED, CANCELLED
     
     # 약관 및 개인정보 동의 항목

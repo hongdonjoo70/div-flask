@@ -74,39 +74,3 @@
     </div>
 </section>
 
-<script>
-function updateTimers() {
-    const timerElements = document.querySelectorAll('[data-endtime]');
-
-    timerElements.forEach(el => {
-        const endTimeStr = el.getAttribute('data-endtime');
-        if (!endTimeStr) return;
-
-        const endTime = new Date(endTimeStr).getTime();
-        const now = new Date().getTime();
-        const diff = endTime - now;
-
-        if (diff <= 0) {
-            el.textContent = "만료된 타임딜";
-            el.style.color = "#999";
-            return;
-        }
-
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        let timeString = "";
-        if (days > 0) timeString += `${days}일 `;
-        timeString += `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} 남았습니다.`;
-
-        el.textContent = timeString;
-    });
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-    updateTimers();
-    setInterval(updateTimers, 1000);
-});
-</script>

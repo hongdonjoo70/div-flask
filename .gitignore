@@ -1,15 +1,71 @@
+# ==========================================
+# 1. Python & Virtual Environment
+# ==========================================
 .venv/
-.idea/
+venv/
+env/
+ENV/
 __pycache__/
-**__pycache__/
-migrations/
-instance/
-*.db
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Playwright
+# ==========================================
+# 2. Environment Variables & Secrets
+# ==========================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ==========================================
+# 3. Flask & SQLite Database
+# ==========================================
+instance/
+migrations/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# ==========================================
+# 4. Node.js & Playwright E2E Testing
+# ==========================================
 node_modules/
+npm-debug.log*
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# ==========================================
+# 5. IDE, Editor & OS Generated Files
+# ==========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# 6. Temporary, Logs & Local Artifacts
+# ==========================================
+*.log
+*.tmp
+*.bak
+screen/
+*.pptx
+~$*.pptx

@@ -1,7 +1,6 @@
 import json
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, session, g, flash
-from flask_login import current_user
 from pybo import db
 from pybo.models import TourProduct, User, Order, OrderItem, Payment, Accommodation, OrderAccommodation
 from pybo.forms import OrderReserveForm
@@ -10,21 +9,15 @@ bp = Blueprint('order', __name__, url_prefix='/order')
 
 
 def check_is_member():
-    """로그인 사용자 여부 판별 (Flask-Login, Flask session, g.user 종합 확인)"""
-    try:
-        if current_user and current_user.is_authenticated:
-            return True, current_user
-    except Exception:
-        pass
+    """로그인 사용자 여부 판별 (g.user 및 Flask session 확인)"""
+    if hasattr(g, 'user') and g.user:
+        return True, g.user
 
     user_id = session.get('user_id')
     if user_id:
         user = User.query.get(user_id)
         if user:
             return True, user
-
-    if hasattr(g, 'user') and g.user:
-        return True, g.user
 
     return False, None
 
